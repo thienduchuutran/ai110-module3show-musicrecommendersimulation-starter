@@ -23,10 +23,32 @@ Some prompts to answer:
 
 - What features does each `Song` use in your system
   - For example: genre, mood, energy, tempo
-- What information does your `UserProfile` store
-- How does your `Recommender` compute a score for each song
-- How do you choose which songs to recommend
+energy, tempo_bpm, valence, danceability, acousticness, genre, mood
 
+- What information does your `UserProfile` store
+The UserProfile class stores 4 pieces of information representing a user's taste preferences:
+
+favorite_genre:	The user's preferred music genre
+favorite_mood:	The user's preferred mood (e.g., happy, sad, chill)
+target_energy:	The desired energy level for songs
+likes_acoustic:	Whether the user prefers acoustic music
+
+- How does your `Recommender` compute a score for each song
+first, compute the closeness of a song to the user's preference based on certain attributes. 
+Example with energy:
+
+
+User prefers energy = 0.40 (chill listener)
+
+Song A (energy = 0.42):  score = 1 - |0.40 - 0.42| = 1 - 0.02 = 0.98  ← very close
+Song B (energy = 0.91):  score = 1 - |0.40 - 0.91| = 1 - 0.51 = 0.49  ← far off
+This converts distance into a 0–1 similarity score where 1.0 = perfect match.
+
+For tempo_bpm, normalize first: normalized = (tempo - 60) / (152 - 60)
+so it sits on the same 0–1 scale as other features.
+
+- How do you choose which songs to recommend
+score every song against the user's preferences, filter out ones that fail basic rules, sort by score, then apply diversity rules before returning the top N. Scoring tells you how good each song is; filtering, sorting, and presentation decide which ones the user actually sees.
 You can include a simple diagram or bullet list if helpful.
 
 ---

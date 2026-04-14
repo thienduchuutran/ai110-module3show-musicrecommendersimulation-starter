@@ -9,3 +9,11 @@ id,title,artist,genre,mood,energy,tempo_bpm,valence,danceability,acousticness
 8,Night Drive Loop,Neon Echo,synthwave,moody,0.75,110,0.49,0.73,0.22
 9,Focus Flow,LoRoom,lofi,focused,0.40,80,0.59,0.60,0.78
 10,Rooftop Lights,Indigo Parade,indie pop,happy,0.76,124,0.81,0.82,0.35
+11,Concrete Kings,Royce Vega,hip-hop,energetic,0.88,95,0.72,0.85,0.08
+12,Moonlit Sonata Drift,Elena Marchetti,classical,peaceful,0.22,68,0.55,0.18,0.95
+13,Pulse Reactor,Kilovolt,electronic,uplifting,0.90,128,0.78,0.91,0.04
+14,Cedar Porch Evening,Hollow Pines,folk,nostalgic,0.38,88,0.52,0.47,0.82
+15,Velvet Letters,Aria Soul,r&b,romantic,0.55,76,0.68,0.74,0.38
+16,Island Timing,Sunset Brigade,reggae,relaxed,0.60,92,0.83,0.80,0.45
+17,Ironclad Rage,Blackspire,metal,angry,0.97,168,0.22,0.48,0.03
+18,Dust Road Memory,Wade Calloway,country,melancholy,0.45,102,0.34,0.55,0.68
