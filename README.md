@@ -1,192 +1,176 @@
-# 🎵 Music Recommender Simulation
+# VibeFinder 2.0 — AI Music Recommender
 
-## Project Summary
+**Base project:** AI110 Module 3 — Music Recommender Simulation
 
-This project builds **VibeFinder 1.0**, a small music recommender that picks songs from a tiny catalog based on a user's taste profile. It represents each song and each user as plain data, uses a simple scoring rule to rank songs, and prints the top picks with short reasons explaining why. The point is not to build a real music app — it is to see how scoring rules, weights, and data gaps shape what a user ends up seeing.
-
----
-
-## How The System Works
-
-**Song features used:** genre, mood, energy, tempo_bpm, valence, danceability, acousticness.
-
-**UserProfile stores 4 pieces of information:**
-
-- `favorite_genre` — the user's preferred music genre
-- `favorite_mood` — the user's preferred mood (e.g., happy, sad, chill)
-- `target_energy` — the desired energy level (0.0–1.0)
-- `likes_acoustic` — whether the user prefers acoustic music
-
-**How the Recommender computes a score:**
-
-The recommender walks through every song and adds up points for each feature that matches the user's taste.
-
-- **Genre match:** +2.0 if the song's genre equals `favorite_genre`
-- **Mood match:** +1.5 if the song's mood equals `favorite_mood`
-- **Energy closeness:** `(1 - |song.energy - target_energy|) * 1.0` — the closer the two numbers, the more points. Example: user wants 0.40, Song A at 0.42 scores 0.98; Song B at 0.91 scores only 0.49.
-- **Acoustic bonus:** +0.5 if the user likes acoustic and the song's acousticness ≥ 0.5
-- For `tempo_bpm`, values are normalized with `(tempo - 60) / (152 - 60)` so they sit on the same 0–1 scale as other features.
-
-**How songs are chosen to recommend:**
-
-1. Score every song against the user's preferences.
-2. Filter out songs that fail basic rules (e.g., negative energy score).
-3. Sort by total score, highest first.
-4. Return the top `k` with a short list of reasons per pick.
-
-Scoring tells you how good each song is; filtering, sorting, and presentation decide which ones the user actually sees.
+VibeFinder started as a rule-based song scorer (VibeFinder 1.0) that matched hardcoded preference dicts against a 18-song catalog. VibeFinder 2.0 wraps that same scorer with an agentic AI pipeline: you describe what you want in plain English, and an LLM extracts your preferences, runs the scorer, re-ranks for diversity, and writes you a personalized playlist note.
 
 ---
 
-## Getting Started
+## System Architecture
 
-### Setup
-
-1. Create a virtual environment (optional but recommended):
-
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate      # Mac or Linux
-   .venv\Scripts\activate         # Windows
-   ```
-
-2. Install dependencies:
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. Run the app:
-
-   ```bash
-   python -m src.main
-   ```
-
-### Running Tests
-
-Run the starter tests with:
-
-```bash
-pytest
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         USER INPUT                                  │
+│           "calm music for late-night coding"                        │
+└────────────────────────────┬────────────────────────────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│  STEP 1 — Preference Extraction            [src/agent.py]           │
+│  Groq LLM maps the query to a structured preference dict            │
+│  { favorite_genre, target_energy, likes_acoustic, ... }             │
+│  + Guardrails: clamp out-of-range values    [src/logger.py]         │
+└────────────────────────────┬────────────────────────────────────────┘
+                             ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│  STEP 2 — Rule-Based Scoring               [src/recommender.py]     │
+│  score_song() scores all 18 songs; returns top 10 candidates        │
+│    +2.0 genre  +1.5 mood  +1.0 energy closeness  +0.5 acoustic      │
+└────────────────────────────┬────────────────────────────────────────┘
+                             ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│  STEP 3 — Diversity Re-Rank                [src/agent.py]           │
+│  Groq LLM picks best 5 from top 10 — balancing score + variety      │
+└────────────────────────────┬────────────────────────────────────────┘
+                             ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│  STEP 4 — Personalized Explanation         [src/agent.py]           │
+│  Groq LLM writes a playlist note referencing the user's own words   │
+└────────────────────────────┬────────────────────────────────────────┘
+                             ▼
+            Display results + save full session to logs/
 ```
 
-You can add more tests in `tests/test_recommender.py`.
+Full component diagram: [assets/architecture.md](assets/architecture.md)
 
 ---
 
-## Experiments You Tried
+## AI Features
 
-- **Lowered genre weight from 2.0 to 0.5.** The top results became much more varied. Pop songs stopped dominating the lofi listener's list, and mood + energy drove more of the ranking. This showed how one weight choice basically sets the "personality" of the whole system.
-- **Added tempo and valence to scoring.** Using normalized tempo closeness and valence closeness made results feel more fine-grained — two lofi songs that had looked identical now split apart based on how upbeat they felt. But the extra features also pulled rankings around in ways that were hard to explain.
-- **Tried multiple user types.** A focused lofi/chill listener got clean, intuitive results. A user asking for "chill mood + max energy" (a contradiction) still got recommendations, because the system happily added points for both halves. A user asking for an unknown genre like "polka" still got songs — just low-scoring ones, with no warning.
+| Feature | How it's implemented |
+|---|---|
+| Agentic Workflow | 4 sequential steps where each step's output feeds the next |
+| LLM Preference Extraction | Groq (llama-3.1-8b-instant) translates natural language to structured prefs |
+| Diversity Re-Ranking | LLM selects top-5 from top-10 candidates for genre/artist variety |
+| Guardrails | `validate_preferences()` clamps AI-generated values to valid ranges |
+| Session Logging | Every pipeline run is saved as a timestamped JSON in `logs/` |
+| NL Test Harness | `evaluate.py --nl` verifies extraction quality against expected mappings |
 
 ---
 
-## Limitations and Risks
+## Project Structure
 
-- It only works on a tiny catalog of 18 songs.
-- It does not understand lyrics, language, or cultural context.
-- It over-favors one genre by default because genre match gives the biggest point boost.
-- It silently ignores unknown moods and genres instead of warning the user.
-- It rewards contradictory preferences (e.g., chill + high energy) at the same time.
-- Tempo, valence, and danceability live in the data but are not used by the base scoring logic.
+```
+├── src/
+│   ├── main.py          Interactive loop + pipeline wiring
+│   ├── agent.py         3 Groq LLM calls (extract, diversify, explain)
+│   ├── recommender.py   Rule-based scorer (unchanged from v1.0)
+│   ├── logger.py        JSON session logs + preference guardrails
+│   └── evaluate.py      Adversarial profiles + NL extraction test harness
+├── data/
+│   └── songs.csv        18-song catalog with audio attributes
+├── tests/
+│   └── test_recommender.py
+├── assets/
+│   └── architecture.md  System architecture diagram
+└── logs/                Auto-created at runtime (gitignored)
+```
 
-You will go deeper on this in the model card.
+---
+
+## Setup
+
+### 1. Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 2. Get a free Groq API key
+
+Sign up at [console.groq.com](https://console.groq.com) — no credit card required.
+
+### 3. Set your API key
+
+Create a `.env` file in the project root:
+
+```
+GROQ_API_KEY=your-key-here
+```
+
+### 4. Run the app
+
+```bash
+cd src
+python main.py
+```
+
+Example session:
+
+```
+What are you in the mood for? > calm music for late-night coding
+
+[Step 1] Understanding your request...
+         Heard as: lofi / chill, energy=0.35, acoustic=True
+         Why: Late-night coding implies low energy and focused calm
+
+[Step 2] Scoring all songs...
+         10 candidates scored (4.98 → 2.22)
+
+[Step 3] Selecting a diverse top-5...
+         Prioritised high scores while mixing genres for variety
+
+[Step 4] Writing your playlist note...
+
+════════════════ YOUR PERSONALIZED PLAYLIST ════════════════
+Given your need for late-night focus, "Midnight Coding" and
+"Library Rain" capture exactly that low-energy headspace...
+```
+
+---
+
+## Running Tests
+
+```bash
+# Unit tests for the rule-based scorer
+pytest
+
+# Adversarial scorer stress-test (no API key needed)
+cd src && python evaluate.py
+
+# NL extraction test harness (calls Groq, ~15 seconds)
+cd src && python evaluate.py --nl
+
+# Both
+cd src && python evaluate.py --all
+```
+
+---
+
+## How the Scorer Works (VibeFinder 1.0 core)
+
+`score_song()` in `recommender.py` gives each song points for matching the user's preferences:
+
+| Feature | Points |
+|---|---|
+| Genre match | +2.0 |
+| Mood match | +1.5 |
+| Energy closeness | `(1 - \|song.energy - target\|) × 1.0` |
+| Acoustic bonus | +0.5 if user likes acoustic and song acousticness ≥ 0.5 |
+
+In VibeFinder 2.0, the user's preference dict is no longer hardcoded — it is extracted from natural language by the LLM in Step 1.
+
+---
+
+## Limitations
+
+- 18-song catalog — results are limited by what's available
+- LLM extraction can misinterpret ambiguous queries
+- Scorer uses only 4 of 8 available audio attributes (tempo, valence, danceability unused)
+- Diversity re-ranking is LLM-guided, not guaranteed — fallback pads from remaining candidates if needed
 
 ---
 
 ## Reflection
 
-Read and complete `model_card.md`:
-
-[**Model Card**](model_card.md)
-
-Building this recommender made it clear how much of a system's "opinion" is baked into a handful of numbers. The +2.0 weight on genre isn't a fact — it's a judgment that genre matters more than mood or energy. Change that number and the system behaves like a different product. Real recommenders do the same thing with far more features, but the core idea is identical: turn taste into data, compare it to items, and rank.
-
-Bias shows up quietly. If the catalog is missing moods like "sad" or genres like "jazz," users who want those things just get worse matches — no error, no explanation, just silently lower-quality lists. A real product would amplify this: whoever builds the catalog and picks the weights decides whose taste counts as "normal." That's where unfairness enters, long before any fancy algorithm runs.
-
----
-
-## 🎧 Model Card — Music Recommender Simulation
-
-### 1. Model Name
-
-**VibeFinder 1.0**
-
----
-
-### 2. Intended Use
-
-VibeFinder suggests 3–5 songs from a small catalog based on a user's preferred genre, mood, energy level, and acoustic preference. It is built for classroom exploration only — not for real users or production use.
-
----
-
-### 3. How It Works (Short Explanation)
-
-For each song, VibeFinder checks how well it matches the user's taste and adds up points:
-
-- Big boost if the genre matches.
-- Smaller boost if the mood matches.
-- More points the closer the song's energy is to what the user wants.
-- A small bonus if the user likes acoustic and the song is mostly acoustic.
-
-The songs with the highest totals are shown first, with short reasons explaining each pick.
-
----
-
-### 4. Data
-
-- 18 songs in `data/songs.csv`.
-- Fields: title, artist, genre, mood, energy, tempo_bpm, valence, danceability, acousticness.
-- Genres represented: pop, lofi, rock, and a few others. Moods: chill, happy, intense.
-- Many real genres (jazz, classical, hip-hop, country, metal) and moods (sad, romantic, angry) are missing.
-- The taste reflected is narrow — it looks like the listening habits of a student who likes lofi and mainstream pop, not the world at large.
-
----
-
-### 5. Strengths
-
-- Works well for users whose taste matches well-represented genres (lofi/chill, pop/happy).
-- Simple, transparent scoring — every recommendation comes with a clear list of reasons.
-- Fast and easy to tweak: change one weight and you can see the whole system shift.
-
----
-
-### 6. Limitations and Bias
-
-- Ignores tempo, valence, and danceability in the base scoring, even though they're in the data.
-- Treats every user as having the same 4-field taste shape.
-- Biased toward the biggest genre in the catalog because genre match is worth the most points.
-- Silently gives bad recommendations for unknown moods or genres instead of warning the user.
-- In a real product, this kind of silent failure could push whole communities of users toward content that doesn't fit them, without them realizing why.
-
----
-
-### 7. Evaluation
-
-I ran `src/evaluate.py`, which tests six adversarial user profiles:
-
-- Conflicting: high energy + sad mood
-- Conflicting: chill mood + max energy
-- Unknown genre ("polka")
-- Out-of-range energy (`target_energy = 2.0`)
-- Everything-neutral user (empty genre and mood)
-- Acoustic lover who also wants rock
-
-I looked at whether the system crashed, whether the top picks felt reasonable, and whether odd inputs got called out. The system never crashed — but it also never complained. It silently produced mediocre recommendations for bad inputs, which matched my expectation but still felt uncomfortable.
-
----
-
-### 8. Future Work
-
-- Use tempo, valence, and danceability in scoring.
-- Support multiple favorite genres and moods per user.
-- Add diversity to the top `k` so results aren't near-duplicates.
-- Warn the user when their genre or mood doesn't exist in the catalog.
-- Add a "group vibe" mode that blends multiple user profiles.
-
----
-
-### 9. Personal Reflection
-
-What surprised me most was how confident the system looks even when it's wrong. A score of 2.5 with two neat reasons feels authoritative, even if the underlying inputs were contradictory. Building this changed how I read real music apps — the "match %" numbers they show are the visible tip of a lot of invisible choices about weights and data. Human judgment still matters, especially in deciding what goes in the catalog, which features count, and how much. The model is only ever as thoughtful as the person who set its weights.
+See [model_card.md](model_card.md) for full reflection on AI collaboration, bias analysis, and evaluation results.
