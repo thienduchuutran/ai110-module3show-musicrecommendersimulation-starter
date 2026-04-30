@@ -174,3 +174,6 @@ In VibeFinder 2.0, the user's preference dict is no longer hardcoded — it is e
 ## Reflection
 
 See [model_card.md](model_card.md) for full reflection on AI collaboration, bias analysis, and evaluation results.
+
+
+https://www.loom.com/share/d63024c0c0944f198c08abb52efd339b

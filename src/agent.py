@@ -14,13 +14,26 @@ import json
 import os
 from typing import Dict, List, Tuple
 
+from dotenv import load_dotenv
 from openai import OpenAI
 
-_client = OpenAI(
-    api_key=os.environ.get("GROQ_API_KEY"),
-    base_url="https://api.groq.com/openai/v1",
-)
+load_dotenv()
+
+_client = None
 _MODEL = "llama-3.1-8b-instant"
+
+
+def _get_client() -> OpenAI:
+    global _client
+    if _client is None:
+        api_key = os.environ.get("GROQ_API_KEY")
+        if not api_key:
+            raise EnvironmentError(
+                "GROQ_API_KEY is not set. Get a free key at https://console.groq.com "
+                "and set it: set GROQ_API_KEY=your_key_here"
+            )
+        _client = OpenAI(api_key=api_key, base_url="https://api.groq.com/openai/v1")
+    return _client
 
 # Injected into prompts so Gemini maps to values that actually exist in songs.csv —
 # prevents silent mismatches like "hip hop" vs "hip-hop".
@@ -38,7 +51,7 @@ CATALOG_MOODS = [
 
 def _call(prompt: str) -> str:
     """Send a prompt to DeepSeek and return the text response."""
-    response = _client.chat.completions.create(
+    response = _get_client().chat.completions.create(
         model=_MODEL,
         messages=[{"role": "user", "content": prompt}],
     )
